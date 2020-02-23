@@ -1,0 +1,487 @@
+> #install.packages("rpart.plot")
+> #install.packages("neuralnet")
+> #install.packages("e1071")
+> #install.packages("h2o")
+> #install.packages("deepnet")
+> #install.packages("class")
+> #install.packages("adabag")
+> #install.packages("randomForest")
+> #install.packages("gbm")
+> #install.packages("xgboost")
+> #install.packages("mlbench")
+> #install.packages("caret")
+> #install.packages("ipred")
+> #install.packages("lattice")
+> #install.packages("pROC")
+> #install.packages("rpart")
+> library("pROC")
+> library("lattice")
+> library("ipred")
+> library("caret")
+> library("mlbench")
+> library("xgboost")
+> library("gbm")
+> library("randomForest")
+> library("adabag")
+> library("e1071")
+> library("class")
+> library("neuralnet")
+> library("rpart")
+> library("rpart.plot")
+> library("h2o")
+> library("deepnet")
+> transfusion <- read.csv("/Users/pradeepkumar/Downloads/data.csv",header = TRUE)
+> maxs = apply(transfusion, MARGIN = 2, max)
+> mins = apply(transfusion, MARGIN = 2, min)
+> scaled_set = as.data.frame(scale(transfusion, center = mins, scale = maxs-mins))
+> #scaled_set$class <- factor(scaled_set$class)
+> correlation_matrix<-cor(scaled_set[,1:5])
+> print(correlation_matrix)
+             Recency  Frequency   Monetary        Time       class
+Recency    1.0000000 -0.1827455 -0.1827455  0.16061809 -0.27986887
+Frequency -0.1827455  1.0000000  1.0000000  0.63494027  0.21863344
+Monetary  -0.1827455  1.0000000  1.0000000  0.63494027  0.21863344
+Time       0.1606181  0.6349403  0.6349403  1.00000000 -0.03585441
+class     -0.2798689  0.2186334  0.2186334 -0.03585441  1.00000000
+> highly_correlated<-findCorrelation(correlation_matrix, cutoff = 0.95)
+> print(highly_correlated)
+[1] 2
+> scaled_set<-scaled_set[c(1,3,4,5)]
+> n_folds<-5
+> 
+> #######DECISION TREE########
+> 
+> acc<-c()
+> for (i in 1:5)
++ {
++   test_data <- scaled_set[(((i-1)*length(scaled_set[,1])/n_folds)+1):((i)*length(scaled_set[,1])/n_folds),]
++   train_data <- rbind(scaled_set[0:(((i-1)*length(scaled_set[,1])/n_folds)),],scaled_set[(((i)*length(scaled_set[,1])/n_folds)+1):length(scaled_set[,1]),])
++   test_data<- na.omit(test_data)
++   train_data<-na.omit(train_data)
++   fit <- rpart(class ~ Recency + Time + Monetary , data = train_data, method = "class", parms = list(split="information"))
++   predict <- predict(fit,test_data,type="class")
++   roc<-roc(test_data$class,as.numeric(predict))
++   accuracy = mean(test_data$class == predict)
++   acc<-c(acc,accuracy)
++ }
+> cat("Accuracy of Decision Tree :",mean(acc),"\n")
+Accuracy of Decision Tree : 0.790604 
+> cat("\n")
+
+> print("ROC for Decision tree")
+[1] "ROC for Decision tree"
+> print(roc)
+
+Call:
+roc.default(response = test_data$class, predictor = as.numeric(predict))
+
+Data: as.numeric(predict) in 135 controls (test_data$class 0) < 14 cases (test_data$class 1).
+Area under the curve: 0.5
+> 
+> ##########PERCEPTRON###############
+> acc1<-c()
+> for (i in 1:5)
++ {
++   test_data <- scaled_set[(((i-1)*length(scaled_set[,1])/n_folds)+1):((i)*length(scaled_set[,1])/n_folds),]
++   train_data <- rbind(scaled_set[0:(((i-1)*length(scaled_set[,1])/n_folds)),],scaled_set[(((i)*length(scaled_set[,1])/n_folds)+1):length(scaled_set[,1]),])
++   test_data<- na.omit(test_data)
++   train_data<-na.omit(train_data)
++   nn<- neuralnet(class ~ Recency + Time + Monetary , data = train_data,hidden = 0, threshold = 0.1,err.fct = "sse", linear.output = FALSE,act.fct = "logistic")
++   predictions<-compute(nn,test_data[,1:3])$net.result
++   predictions<-ifelse(predictions>1,1,0)
++   accuracy1 = mean(test_data$class == predictions)
++   acc1<-c(acc1,accuracy1)
++   roc1<-roc(test_data$class,as.numeric(predictions))
++ }
+> cat("Accuracy of Perceptron :",mean(acc1),"\n")
+Accuracy of Perceptron : 0.7610738 
+> cat("\n")
+
+> print("ROC for perceptron:")
+[1] "ROC for perceptron:"
+> roc11<-roc
+> print(roc1)
+
+Call:
+roc.default(response = test_data$class, predictor = as.numeric(predictions))
+
+Data: as.numeric(predictions) in 135 controls (test_data$class 0) < 14 cases (test_data$class 1).
+Area under the curve: 0.5
+> #######NEURALNETS###########
+> 
+> acc2<-c()
+> for (i in 1:5)
++ {
++   test_data <- scaled_set[(((i-1)*length(scaled_set[,1])/n_folds)+1):((i)*length(scaled_set[,1])/n_folds),]
++   train_data <- rbind(scaled_set[0:(((i-1)*length(scaled_set[,1])/n_folds)),],scaled_set[(((i)*length(scaled_set[,1])/n_folds)+1):length(scaled_set[,1]),])
++   test_data<- na.omit(test_data)
++   train_data<-na.omit(train_data)
++   nn<- neuralnet(class ~ Recency + Time + Monetary , data = train_data,hidden = c(2,2), err.fct = "ce",rep = 5, threshold = 0.01,linear.output = FALSE, learningrate = 0.5,act.fct = "logistic")
++   predictions<-compute(nn,test_data[,1:3])$net.result
++   predictions<-ifelse(predictions>1,1,0)
++   accuracy2 = mean(test_data$class == predictions)
++   acc2<-c(acc2,accuracy2)
++   roc2<-roc(test_data$class,as.numeric(predictions))
++ }
+> cat("Accuracy of Neural Nets:",mean(acc2),"\n")
+Accuracy of Neural Nets: 0.6677852 
+> cat("\n")
+
+> print("ROC Nueral Nets")
+[1] "ROC Nueral Nets"
+> print(roc2)
+
+Call:
+roc.default(response = test_data$class, predictor = as.numeric(predictions))
+
+Data: as.numeric(predictions) in 117 controls (test_data$class 0) < 32 cases (test_data$class 1).
+Area under the curve: 0.5
+> ##########SVM###########
+> acc3<-c()
+> for (i in 1:5)
++ {
++   test_data <- scaled_set[(((i-1)*length(scaled_set[,1])/n_folds)+1):((i)*length(scaled_set[,1])/n_folds),]
++   train_data <- rbind(scaled_set[0:(((i-1)*length(scaled_set[,1])/n_folds)),],scaled_set[(((i)*length(scaled_set[,1])/n_folds)+1):length(scaled_set[,1]),])
++   test_data<- na.omit(test_data)
++   train_data<-na.omit(train_data)
++   svm_fit <- svm(class ~., data = train_data, kernel = "linear", cost = 100, gamma = 1)
++   svmpredict<-predict(svm_fit,test_data[,1:3])
++   svmpredict<-ifelse(svmpredict>0.5,1,0)
++   accuracy3 = mean(test_data$class == svmpredict)
++   acc3<-c(acc3,accuracy3)
++   roc3<-roc(test_data$class,as.numeric(svmpredict))
++ }
+> 
+> cat("Accuracy of SVM :",mean(acc3),"\n")
+Accuracy of SVM : 0.7610738 
+> cat("\n")
+
+> print("ROC for Support vector machine")
+[1] "ROC for Support vector machine"
+> print(roc3)
+
+Call:
+roc.default(response = test_data$class, predictor = as.numeric(svmpredict))
+
+Data: as.numeric(svmpredict) in 135 controls (test_data$class 0) < 14 cases (test_data$class 1).
+Area under the curve: 0.5
+> #######DEEP LEARNING########
+> acc4<-c()
+> for (i in 1:5)
++ {
++   test_data <- scaled_set[(((i-1)*length(scaled_set[,1])/n_folds)+1):((i)*length(scaled_set[,1])/n_folds),]
++   train_data <- rbind(scaled_set[0:(((i-1)*length(scaled_set[,1])/n_folds)),],scaled_set[(((i)*length(scaled_set[,1])/n_folds)+1):length(scaled_set[,1]),])
++   test_data<- na.omit(test_data)
++   train_data<-na.omit(train_data)
++   dnn<-dbn.dnn.train(as.matrix(train_data[,1:3]),train_data[,4],numepochs = 100, momentum = 0.5, activationfun = "sigm",learningrate_scale=1)
++   dlpredict<-nn.test(dnn,as.matrix(test_data[,1:3]),test_data[,4],t=0.5)
++   acc4<-c(acc4,(1-dlpredict))
++ }
+begin to train dbn ......
+training layer 1 rbm ...
+dbn has been trained.
+begin to train deep nn ......
+deep nn has been trained.
+begin to train dbn ......
+training layer 1 rbm ...
+dbn has been trained.
+begin to train deep nn ......
+deep nn has been trained.
+begin to train dbn ......
+training layer 1 rbm ...
+dbn has been trained.
+begin to train deep nn ......
+deep nn has been trained.
+begin to train dbn ......
+training layer 1 rbm ...
+dbn has been trained.
+begin to train deep nn ......
+deep nn has been trained.
+begin to train dbn ......
+training layer 1 rbm ...
+dbn has been trained.
+begin to train deep nn ......
+deep nn has been trained.
+> cat("Accuracy of Deep Learning :",mean(acc4),"\n")
+Accuracy of Deep Learning : 0.8805369 
+> cat("\n")
+
+> print("ROC for Deep learning")
+[1] "ROC for Deep learning"
+> print(roc11)
+
+Call:
+roc.default(response = test_data$class, predictor = as.numeric(predict))
+
+Data: as.numeric(predict) in 135 controls (test_data$class 0) < 14 cases (test_data$class 1).
+Area under the curve: 0.5
+> #########NAIVE BAYES#######
+> acc5<-c()
+> scaled_set$class <- factor(scaled_set$class)
+> for (i in 1:5)
++ {
++   test_data <- scaled_set[(((i-1)*length(scaled_set[,1])/n_folds)+1):((i)*length(scaled_set[,1])/n_folds),]
++   train_data <- rbind(scaled_set[0:(((i-1)*length(scaled_set[,1])/n_folds)),],scaled_set[(((i)*length(scaled_set[,1])/n_folds)+1):length(scaled_set[,1]),])
++   test_data<- na.omit(test_data)
++   train_data<-na.omit(train_data)
++   model<-naiveBayes(class ~., data = train_data,laplace = 3)
++   pred<-predict(model,test_data[,1:3])
++   pred
++   tab<-table(pred,test_data$class)
++   accuracy5 = sum(tab[row(tab)==col(tab)])/sum(tab)
++   acc5<-c(acc5,accuracy5)
++   roc4<-roc(test_data$class,as.numeric(pred))
++ }
+> cat("Accuracy of Naive Bayes :",mean(acc5),"\n")
+Accuracy of Naive Bayes : 0.7691275 
+> cat("\n")
+
+> print("ROC for Naive bayes")
+[1] "ROC for Naive bayes"
+> print(roc4)
+
+Call:
+roc.default(response = test_data$class, predictor = as.numeric(pred))
+
+Data: as.numeric(pred) in 135 controls (test_data$class 0) < 14 cases (test_data$class 1).
+Area under the curve: 0.5
+> ########LOGISTIC REGRESSION#######
+> 
+> acc6<-c()
+> scaled_set$class <- factor(scaled_set$class)
+> for (i in 1:5)
++ {
++   test_data <- scaled_set[(((i-1)*length(scaled_set[,1])/n_folds)+1):((i)*length(scaled_set[,1])/n_folds),]
++   train_data <- rbind(scaled_set[0:(((i-1)*length(scaled_set[,1])/n_folds)),],scaled_set[(((i)*length(scaled_set[,1])/n_folds)+1):length(scaled_set[,1]),])
++   test_data<- na.omit(test_data)
++   train_data<-na.omit(train_data)
++   model<-glm(class~ Recency + Time + Monetary ,data = train_data,family="binomial")
++   pred<-predict.glm(model,test_data[,1:3])
++   pred<-ifelse(pred>0.5,1,0) 
++   accuracy6 = mean(pred==test_data$class)
++   acc6<-c(acc6,accuracy6)
++   roc5<-roc(test_data$class,as.numeric(pred))
++ }
+> cat("Accuracy of Logistic regression :",mean(acc6),"\n")
+Accuracy of Logistic regression : 0.7731544 
+> cat("\n")
+
+> print("ROC for Logistic regression")
+[1] "ROC for Logistic regression"
+> print(roc5)
+
+Call:
+roc.default(response = test_data$class, predictor = as.numeric(pred))
+
+Data: as.numeric(pred) in 135 controls (test_data$class 0) < 14 cases (test_data$class 1).
+Area under the curve: 0.5
+> 
+> ########KNN############
+> 
+> acc7<-c()
+> scaled_set$class <- factor(scaled_set$class)
+> for (i in 1:5)
++ {
++   test_data <- scaled_set[(((i-1)*length(scaled_set[,1])/n_folds)+1):((i)*length(scaled_set[,1])/n_folds),]
++   train_data <- rbind(scaled_set[0:(((i-1)*length(scaled_set[,1])/n_folds)),],scaled_set[(((i)*length(scaled_set[,1])/n_folds)+1):length(scaled_set[,1]),])
++   test_data<- na.omit(test_data)
++   train_data<-na.omit(train_data)
++   model<-knn(train = train_data,test = test_data, cl=train_data$class,k=4,prob = TRUE,use.all = TRUE)
++   accuracy7 = mean(model==test_data$class)
++   acc7<-c(acc7,accuracy7)
++   roc6<-roc(test_data$class,as.numeric(model))
++ }
+> cat("Accuracy of KNN :",mean(acc7),"\n")
+Accuracy of KNN : 1 
+> cat("\n")
+
+> print("ROC for K-nearest neighbors")
+[1] "ROC for K-nearest neighbors"
+> print(roc6)
+
+Call:
+roc.default(response = test_data$class, predictor = as.numeric(model))
+
+Data: as.numeric(model) in 135 controls (test_data$class 0) < 14 cases (test_data$class 1).
+Area under the curve: 1
+> #######ADA BOOSTING#######
+> 
+> acc8<-c()
+> scaled_set$class <- factor(scaled_set$class)
+> for (i in 1:5)
++ {
++   test_data <- scaled_set[(((i-1)*length(scaled_set[,1])/n_folds)+1):((i)*length(scaled_set[,1])/n_folds),]
++   train_data <- rbind(scaled_set[0:(((i-1)*length(scaled_set[,1])/n_folds)),],scaled_set[(((i)*length(scaled_set[,1])/n_folds)+1):length(scaled_set[,1]),])
++   test_data<- na.omit(test_data)
++   train_data<-na.omit(train_data)
++   model<-boosting(class~., data=train_data, mfinal = 10,control = rpart.control(maxdepth = 1))
++   pred<-predict.boosting(model,test_data)
++   accuracy8 = mean(pred$class==test_data$class)
++   acc8<-c(acc8,accuracy8)
++   roc7<-roc(test_data$class,as.numeric(pred$class))
++ }
+> cat("Accuracy of Ada Boosting :",mean(acc8),"\n")
+Accuracy of Ada Boosting : 0.7624161 
+> cat("\n")
+
+> print("ROC for ADA Boosting")
+[1] "ROC for ADA Boosting"
+> print(roc7)
+
+Call:
+roc.default(response = test_data$class, predictor = as.numeric(pred$class))
+
+Data: as.numeric(pred$class) in 135 controls (test_data$class 0) < 14 cases (test_data$class 1).
+Area under the curve: 0.5
+> 
+> 
+> #######RANDOM FOREST#####
+> 
+> acc9<-c()
+> scaled_set$class <- factor(scaled_set$class)
+> for (i in 1:5)
++ {
++   test_data <- scaled_set[(((i-1)*length(scaled_set[,1])/n_folds)+1):((i)*length(scaled_set[,1])/n_folds),]
++   train_data <- rbind(scaled_set[0:(((i-1)*length(scaled_set[,1])/n_folds)),],scaled_set[(((i)*length(scaled_set[,1])/n_folds)+1):length(scaled_set[,1]),])
++   test_data<- na.omit(test_data)
++   train_data<-na.omit(train_data)
++   model<-randomForest(class~., data=train_data,importance = TRUE, mtry = 2, ntree = 500)
++   pred<-predict(model,test_data)
++   accuracy9 = mean(pred==test_data$class)
++   acc9<-c(acc9,accuracy9)
++   roc8<-roc(test_data$class,as.numeric(pred))
++ }
+> cat("Accuracy of Random Forest :",mean(acc9),"\n")
+Accuracy of Random Forest : 0.7395973 
+> cat("\n")
+
+> print("ROC for Random Forest")
+[1] "ROC for Random Forest"
+> print(roc8)
+
+Call:
+roc.default(response = test_data$class, predictor = as.numeric(pred))
+
+Data: as.numeric(pred) in 135 controls (test_data$class 0) < 14 cases (test_data$class 1).
+Area under the curve: 0.4741
+> #####GRADIENT BOOSTING######
+> 
+> acc10<-c()
+> scaled_set$class <- factor(scaled_set$class)
+> for (i in 1:5)
++ {
++   test_data <- scaled_set[(((i-1)*length(scaled_set[,1])/n_folds)+1):((i)*length(scaled_set[,1])/n_folds),]
++   train_data <- rbind(scaled_set[0:(((i-1)*length(scaled_set[,1])/n_folds)),],scaled_set[(((i)*length(scaled_set[,1])/n_folds)+1):length(scaled_set[,1]),])
++   test_data<- na.omit(test_data)
++   train_data<-na.omit(train_data)
++   model<-xgboost( data = as.matrix(train_data[,1:3]), label=train_data$class, max.depth=2,nrounds = 2)
++   pred<-predict(model,as.matrix(test_data[,1:3]))
++   pred<-ifelse(pred>1,1,0)
++   accuracy10 = mean(pred==test_data$class)
++   acc10<-c(acc10,accuracy10)
++   roc9<-roc(test_data$class,as.numeric(pred))
++ }
+[1]	train-rmse:0.612244 
+[2]	train-rmse:0.502831 
+[1]	train-rmse:0.663737 
+[2]	train-rmse:0.541478 
+[1]	train-rmse:0.690512 
+[2]	train-rmse:0.567137 
+[1]	train-rmse:0.642754 
+[2]	train-rmse:0.529219 
+[1]	train-rmse:0.692575 
+[2]	train-rmse:0.568312 
+> cat("Accuracy of Gradient boosting :",mean(acc10),"\n")
+Accuracy of Gradient boosting : 0.7342282 
+> cat("\n")
+
+> print("ROC for Gradient Boosting")
+[1] "ROC for Gradient Boosting"
+> print(roc9)
+
+Call:
+roc.default(response = test_data$class, predictor = as.numeric(pred))
+
+Data: as.numeric(pred) in 135 controls (test_data$class 0) < 14 cases (test_data$class 1).
+Area under the curve: 0.4741
+> ######BAGGING######
+> 
+> acc11<-c()
+> for (i in 1:5)
++ {
++   test_data <- scaled_set[(((i-1)*length(scaled_set[,1])/n_folds)+1):((i)*length(scaled_set[,1])/n_folds),]
++   train_data <- rbind(scaled_set[0:(((i-1)*length(scaled_set[,1])/n_folds)),],scaled_set[(((i)*length(scaled_set[,1])/n_folds)+1):length(scaled_set[,1]),])
++   test_data<- na.omit(test_data)
++   train_data<-na.omit(train_data)
++   model <- bagging(class~.,ns=275,nbagg=500,
++                    control=rpart.control(minsplit=5, cp=0, xval=0,maxsurrogate=0),
++                    data=train_data)
++   pred<-predict(model,(test_data[,1:3]))
++   pred<-ifelse(pred$class>0.5,1,0)
++   accuracy11 = mean(pred==test_data$class)
++   acc11<-c(acc11,accuracy11)
++   roc10<-roc(test_data$class,as.numeric(pred))
++ }
+> cat("Accuracy of Bagging :",mean(acc11),"\n")
+Accuracy of Bagging : 0.757047 
+> cat("\n")
+
+> print("ROC for Bagging")
+[1] "ROC for Bagging"
+> print(roc10)
+
+Call:
+roc.default(response = test_data$class, predictor = as.numeric(pred))
+
+Data: as.numeric(pred) in 135 controls (test_data$class 0) < 14 cases (test_data$class 1).
+Area under the curve: 0.4926
+> #install.packages("rpart.plot")
+> #install.packages("neuralnet")
+> #install.packages("e1071")
+> #install.packages("h2o")
+> #install.packages("deepnet")
+> #install.packages("class")
+> #install.packages("adabag")
+> #install.packages("randomForest")
+> #install.packages("gbm")
+> #install.packages("xgboost")
+> #install.packages("mlbench")
+> #install.packages("caret")
+> #install.packages("ipred")
+> #install.packages("lattice")
+> #install.packages("pROC")
+> #install.packages("rpart")
+> library("pROC")
+> library("lattice")
+> library("ipred")
+> library("caret")
+> library("mlbench")
+> library("xgboost")
+> library("gbm")
+> library("randomForest")
+> library("adabag")
+> library("e1071")
+> library("class")
+> library("neuralnet")
+> library("rpart")
+> library("rpart.plot")
+> library("h2o")
+> library("deepnet")
+> transfusion <- read.csv("/Users/pradeepkumar/Downloads/data.csv",header = TRUE)
+> maxs = apply(transfusion, MARGIN = 2, max)
+> mins = apply(transfusion, MARGIN = 2, min)
+> scaled_set = as.data.frame(scale(transfusion, center = mins, scale = maxs-mins))
+> #scaled_set$class <- factor(scaled_set$class)
+> correlation_matrix<-cor(scaled_set[,1:5])
+> print(correlation_matrix)
+             Recency  Frequency   Monetary        Time       class
+Recency    1.0000000 -0.1827455 -0.1827455  0.16061809 -0.27986887
+Frequency -0.1827455  1.0000000  1.0000000  0.63494027  0.21863344
+Monetary  -0.1827455  1.0000000  1.0000000  0.63494027  0.21863344
+Time       0.1606181  0.6349403  0.6349403  1.00000000 -0.03585441
+class     -0.2798689  0.2186334  0.2186334 -0.03585441  1.00000000
+> highly_correlated<-findCorrelation(correlation_matrix, cutoff = 0.95)
+> print(highly_correlated)
+[1] 2
+> scaled_set<-scaled_set[c(1,3,4,5)]
+> n_folds<-5
